@@ -88,7 +88,7 @@ impl Default for Workspace {
 }
 
 impl Workspace {
-    fn add_window(&mut self, window: Window) {
+    pub fn add_window(&mut self, window: Window) {
         let Some((x, y)) = self.arrange_window(&window) else {
             return;
         };

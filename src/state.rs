@@ -4,25 +4,36 @@ use smithay::{
     input::{SeatState, pointer::CursorImageStatus},
     reexports::{calloop::LoopHandle, wayland_server::DisplayHandle},
     wayland::{
-        compositor::CompositorState as CompositorStateImpl, shell::xdg::XdgShellState,
-        shm::ShmState,
+        buffer::BufferHandler, compositor::CompositorState as CompositorStateImpl,
+        shell::xdg::XdgShellState, shm::ShmState,
     },
 };
 
-pub struct State {
+pub struct RackyState {
     pub(crate) compositor: Compositor,
+}
+
+impl RackyState {
+    pub fn new(
+        display_handle: DisplayHandle,
+        loop_handle: LoopHandle<'static, RackyState>,
+    ) -> Self {
+        Self {
+            compositor: Compositor::new(display_handle, loop_handle),
+        }
+    }
 }
 
 pub struct Compositor {
     // Wayland infrastructure
     pub display_handle: DisplayHandle,
-    pub loop_handle: LoopHandle<'static, State>,
+    pub loop_handle: LoopHandle<'static, RackyState>,
 
     // Core protocol state
     pub compositor_state: CompositorStateImpl,
     pub xdg_shell_state: XdgShellState,
     pub shm_state: ShmState,
-    pub seat_state: SeatState<State>,
+    pub seat_state: SeatState<RackyState>,
 
     // Desktop objects
     pub popups: PopupManager,
@@ -33,16 +44,16 @@ pub struct Compositor {
 }
 
 impl Compositor {
-    fn new(display_handle: DisplayHandle) -> Self {
-        let xdg_shell_state = XdgShellState::new::<State>(&display_handle);
-        let compositor_state = CompositorStateImpl::new(&display_handle);
-        let seat_state = SeatState::<State>::new();
+    fn new(display_handle: DisplayHandle, loop_handle: LoopHandle<'static, RackyState>) -> Self {
+        let xdg_shell_state = XdgShellState::new::<RackyState>(&display_handle);
+        let compositor_state = CompositorStateImpl::new::<RackyState>(&display_handle);
+        let seat_state = SeatState::<RackyState>::new();
         let popups = PopupManager::default();
         let cursor_status = CursorImageStatus::default_named();
-        let windowmaneger = WindowManager::default();
+        let window_manager = WindowManager::default();
 
         //FIXME: support more formats
-        let shm_state = ShmState::new(&display_handle, vec![]);
+        let shm_state = ShmState::new::<RackyState>(&display_handle, vec![]);
 
         Self {
             display_handle,
@@ -54,7 +65,7 @@ impl Compositor {
             seat_state,
             popups,
             window_manager,
-            running,
+            running: true,
         }
     }
 }

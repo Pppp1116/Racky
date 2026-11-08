@@ -1,4 +1,4 @@
-use crate::state::State;
+use crate::state::RackyState;
 use smithay::{
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     wayland::pointer_constraints::{
@@ -6,7 +6,7 @@ use smithay::{
     },
 };
 
-impl PointerConstraintsHandler for State {
+impl PointerConstraintsHandler for RackyState {
     fn new_constraint(
         &mut self,
         surface: &WlSurface,

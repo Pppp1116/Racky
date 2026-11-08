@@ -1,4 +1,4 @@
-use crate::{client::ClientState, state::State};
+use crate::{client::ClientState, state::RackyState};
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
     delegate_dispatch2,
@@ -9,14 +9,16 @@ use smithay::{
     },
     wayland::{
         GlobalData, GlobalDispatch2,
+        buffer::BufferHandler,
         compositor::{
             CompositorHandler, CompositorState as CompositorStateImpl, SurfaceAttributes,
             get_parent, is_sync_subsurface, with_states,
         },
+        shm::ShmHandler,
     },
 };
 
-impl CompositorHandler for State {
+impl CompositorHandler for RackyState {
     fn compositor_state(&mut self) -> &mut CompositorStateImpl {
         &mut self.compositor.compositor_state
     }
@@ -94,4 +96,16 @@ impl CompositorHandler for State {
     }
 }
 
-delegate_dispatch2!(State);
+impl BufferHandler for RackyState {
+    fn buffer_destroyed(
+        &mut self,
+        buffer: &smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer,
+    ) {
+    }
+}
+impl ShmHandler for RackyState {
+    fn shm_state(&self) -> &smithay::wayland::shm::ShmState {
+        &self.compositor.shm_state
+    }
+}
+delegate_dispatch2!(RackyState);

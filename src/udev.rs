@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use smithay::{
     backend::{
         drm::{CreateDrmNodeError, DrmDeviceFd, DrmNode, NodeType},
@@ -16,7 +18,7 @@ use smithay::{
 };
 use thiserror::Error;
 
-use crate::state::State;
+use crate::state::RackyState;
 #[derive(Debug, Error)]
 pub enum CompError {
     #[error("Event Loop Error: {0}")]
@@ -37,9 +39,9 @@ pub enum CompError {
 
 pub type Result<T> = std::result::Result<T, CompError>;
 
-fn run_udev() -> Result<()> {
-    let mut event_loop = EventLoop::<State>::try_new()?;
-    let display = Display::<State>::new()?;
+pub fn run_udev() -> Result<()> {
+    let mut event_loop = EventLoop::<RackyState>::try_new()?;
+    let display = Display::<RackyState>::new()?;
     let mut display_handle = display.handle();
 
     let (session, notifier) = LibSeatSession::new()?;
@@ -50,6 +52,13 @@ fn run_udev() -> Result<()> {
         GbmGlesBackend::<GlesRenderer, DrmDeviceFd>::with_context_priority(ContextPriority::High),
     );
 
+    let mut racky_state = RackyState::new(display_handle.clone(), event_loop.handle());
+
+    while racky_state.compositor.running {
+        event_loop.dispatch(Some(Duration::from_millis(16)), &mut racky_state)?;
+
+        display_handle.flush_clients()?;
+    }
     Ok(())
 }
 
