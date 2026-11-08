@@ -7,13 +7,16 @@ use smithay::{
     },
     reexports::{
         calloop::LoopHandle,
-        wayland_server::{DisplayHandle, Resource, protocol::wl_surface::WlSurface},
+        wayland_server::{
+            DisplayHandle, Resource, backend::ClientData, protocol::wl_surface::WlSurface,
+        },
     },
     wayland::{
         compositor::{
             CompositorClientState, CompositorHandler, CompositorState as CompositorStateImpl,
             SurfaceAttributes, get_parent, is_sync_subsurface, with_states,
         },
+        pointer_constraints::{PointerConstraintsHandler, with_pointer_constraint},
         seat::WaylandFocus,
         shell::xdg::XdgShellState,
         shm::ShmState,
@@ -23,7 +26,30 @@ use smithay::{
 pub struct State {
     compositor: Compositor,
 }
+impl PointerConstraintsHandler for State {
+    fn new_constraint(
+        &mut self,
+        surface: &WlSurface,
+        pointer: &smithay::input::pointer::PointerHandle<Self>,
+    ) {
+        //if not focused skip
+        let Some(current_focus) = pointer.current_focus() else {
+            return;
+        };
 
+        //if the current focus is diffrent from surface skip
+        if &current_focus != surface {
+            return;
+        }
+        with_pointer_constraint(surface, pointer, |constraint| {
+            let Some(constraint) = constraint else {
+                return;
+            };
+            constraint.activate();
+        });
+    }
+    //TODO: impl now constraint remove
+}
 impl CompositorHandler for State {
     fn compositor_state(&mut self) -> &mut CompositorStateImpl {
         &mut self.compositor.compositor_state
@@ -171,6 +197,10 @@ impl Compositor {
 struct ClientState {
     compositor_state: CompositorClientState,
 }
+
+//TODO: maybe add debug msg or logs
+impl ClientData for ClientState {}
+
 pub struct WindowManager {
     workspace_collection: Vec<Workspace>,
     active_workspace: usize,
