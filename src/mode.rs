@@ -13,17 +13,12 @@ pub enum Type {
 /// This should only describe the characteristics of the video driver,
 /// not taking into account any global scaling.
 pub struct Mode {
-    ty: Type,
     size: Size<i32, Physical>,
     refresh_rate: i32,
 }
 
 impl Mode {
-    pub fn new(ty: Type, size: Size<i32, Physical>, refresh_rate: i32) -> Self {
-        Self {
-            ty: ty,
-            size,
-            refresh_rate,
-        }
+    pub fn new(size: Size<i32, Physical>, refresh_rate: i32) -> Self {
+        Self { size, refresh_rate }
     }
 }
