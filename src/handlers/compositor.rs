@@ -56,8 +56,6 @@ impl CompositorHandler for State {
                             .window_manager
                             .apply_buffer_offset(&window, buffer_offset);
                     }
-
-                    self.compositor.popups.commit(surface);
                 }
             }
         }

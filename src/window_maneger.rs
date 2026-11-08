@@ -6,32 +6,38 @@ use smithay::{
 };
 
 pub struct WindowManager {
-    pub(crate) workspace_collection: Vec<Workspace>,
-    pub(crate) active_workspace: usize,
+    workspace_collection: Vec<Workspace>,
+    active_workspace: usize,
 }
 
 impl WindowManager {
+    ///finds a window in all the window maneger
     pub fn find_window_from_surface(&self, surface: &WlSurface) -> Option<&Window> {
-        let workspace = self.workspace_collection.get(self.active_workspace)?;
-
-        workspace
-            .space
-            .elements()
+        self.workspace_collection
+            .iter()
+            .flat_map(|workspace| workspace.space.elements())
             .find(|window| window.wl_surface().as_deref() == Some(surface))
     }
-    pub fn active_workspace_mut(&mut self) -> Option<&mut Workspace> {
-        self.workspace_collection.get_mut(self.active_workspace)
-    }
-    pub(crate) fn apply_buffer_offset(&mut self, window: &Window, offset: Point<i32, Logical>) {
+    pub fn remember_focused_window(&mut self, window: Window) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
 
-        let Some(location) = workspace.space.element_location(window) else {
-            return;
-        };
+        workspace.focused_window = Some(window)
+    }
+    /// gets a mutable ref to the workspace collection
+    fn active_workspace_mut(&mut self) -> Option<&mut Workspace> {
+        self.workspace_collection.get_mut(self.active_workspace)
+    }
 
-        workspace.space.relocate_element(window, location + offset);
+    //applies the buffer `offset` for the window
+    pub(crate) fn apply_buffer_offset(&mut self, window: &Window, offset: Point<i32, Logical>) {
+        for workspace in &mut self.workspace_collection {
+            if let Some(location) = workspace.space.element_location(window) {
+                workspace.space.relocate_element(window, location + offset);
+                return;
+            }
+        }
     }
 }
 

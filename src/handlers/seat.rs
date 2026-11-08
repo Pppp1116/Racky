@@ -1,5 +1,8 @@
 use crate::state::State;
-use smithay::{input::{SeatHandler, SeatState}, reexports::wayland_server::protocol::wl_surface::WlSurface};
+use smithay::{
+    input::{SeatHandler, SeatState},
+    reexports::wayland_server::protocol::wl_surface::WlSurface,
+};
 
 impl SeatHandler for State {
     type KeyboardFocus = WlSurface;
@@ -15,21 +18,21 @@ impl SeatHandler for State {
         seat: &smithay::input::Seat<Self>,
         focused: Option<&Self::KeyboardFocus>,
     ) {
-        let wm = &mut self.compositor.window_manager;
-
         let Some(surface) = focused else {
             return;
         };
 
-        let Some(window) = wm.find_window_from_surface(surface).cloned() else {
+        let Some(window) = self
+            .compositor
+            .window_manager
+            .find_window_from_surface(surface)
+            .cloned()
+        else {
             return;
         };
 
-        let Some(workspace) = wm.workspace_collection.get_mut(wm.active_workspace) else {
-            return;
-        };
-
-        workspace.focused_window = Some(window);
+        self.compositor
+            .window_manager
+            .remember_focused_window(window);
     }
 }
-
