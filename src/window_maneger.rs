@@ -1,13 +1,30 @@
+use smallvec::SmallVec;
 use smithay::{
     desktop::{Space, Window},
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     utils::{Logical, Point},
     wayland::seat::WaylandFocus,
 };
+use std::borrow::Cow;
 
 pub struct WindowManager {
     workspace_collection: Vec<Workspace>,
     active_workspace: usize,
+}
+impl Default for WindowManager {
+    fn default() -> Self {
+        //TODO: configurable workspace num
+        let mut workspace_collection = Vec::with_capacity(10);
+
+        for _i in 0..=10 {
+            workspace_collection.push(Workspace::default());
+        }
+
+        Self {
+            workspace_collection,
+            active_workspace: 0,
+        }
+    }
 }
 
 impl WindowManager {
@@ -26,7 +43,7 @@ impl WindowManager {
         workspace.focused_window = Some(window)
     }
     /// gets a mutable ref to the workspace collection
-    fn active_workspace_mut(&mut self) -> Option<&mut Workspace> {
+    pub fn active_workspace_mut(&mut self) -> Option<&mut Workspace> {
         self.workspace_collection.get_mut(self.active_workspace)
     }
 
@@ -59,8 +76,70 @@ pub struct Workspace {
     layout: Layout,
     pub focused_window: Option<Window>,
 }
+impl Default for Workspace {
+    fn default() -> Self {
+        Self {
+            space: Space::default(),
+            //TODO: add default layout based on settigns file
+            layout: Layout::Floating,
+            focused_window: None,
+        }
+    }
+}
+
+impl Workspace {
+    fn add_window(&mut self, window: Window) {
+        let Some((x, y)) = self.arrange_window(&window) else {
+            return;
+        };
+
+        if let Layout::Scrooling { windows, .. } = &mut self.layout {
+            windows.push(window.clone());
+        }
+        self.space.map_element(window, (x, y), true);
+    }
+    fn arrange_window(&mut self, window: &Window) -> Option<(i32, i32)> {
+        let Some(output) = self.space.outputs().next() else {
+            return None;
+        };
+        let Some(screen) = self.space.output_geometry(output) else {
+            return None;
+        };
+
+        let size = window.geometry().size;
+        let y = screen.loc.y + (screen.size.h - size.h) / 2;
+
+        match &self.layout {
+            Layout::Floating => {
+                let x = screen.loc.x + (screen.size.w - size.w) / 2;
+                Some((x, y))
+            }
+            Layout::Scrooling {
+                scrool_offset,
+                windows,
+            } => {
+                let width = screen.size.w / 2;
+
+                let mut x = 10;
+
+                for existing in windows {
+                    let position = (x - *scrool_offset, 10);
+
+                    self.space.relocate_element(existing, position);
+
+                    x += width + 10;
+                }
+
+                Some((x - *scrool_offset, y))
+            }
+        }
+    }
+}
 
 pub enum Layout {
-    Tiled,
+    Scrooling {
+        scrool_offset: i32,
+        windows: Vec<Window>,
+    },
     Floating,
 }

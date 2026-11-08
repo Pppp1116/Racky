@@ -1,11 +1,18 @@
 use crate::{client::ClientState, state::State};
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
+    delegate_dispatch2,
     input::pointer::{CursorImageStatus, CursorImageSurfaceData},
-    reexports::wayland_server::protocol::wl_surface::WlSurface,
-    wayland::compositor::{
-        CompositorHandler, CompositorState as CompositorStateImpl, SurfaceAttributes, get_parent,
-        is_sync_subsurface, with_states,
+    reexports::{
+        wayland_protocols::xdg::shell::server::xdg_wm_base::XdgWmBase,
+        wayland_server::protocol::wl_surface::WlSurface,
+    },
+    wayland::{
+        GlobalData, GlobalDispatch2,
+        compositor::{
+            CompositorHandler, CompositorState as CompositorStateImpl, SurfaceAttributes,
+            get_parent, is_sync_subsurface, with_states,
+        },
     },
 };
 
@@ -86,3 +93,5 @@ impl CompositorHandler for State {
         //TODO: add a DrangAndDropOtption icon (DndIcon)
     }
 }
+
+delegate_dispatch2!(State);

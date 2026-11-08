@@ -33,7 +33,28 @@ pub struct Compositor {
 }
 
 impl Compositor {
-    fn new(display_handle: DisplayHandle) {
+    fn new(display_handle: DisplayHandle) -> Self {
         let xdg_shell_state = XdgShellState::new::<State>(&display_handle);
+        let compositor_state = CompositorStateImpl::new(&display_handle);
+        let seat_state = SeatState::<State>::new();
+        let popups = PopupManager::default();
+        let cursor_status = CursorImageStatus::default_named();
+        let windowmaneger = WindowManager::default();
+
+        //FIXME: support more formats
+        let shm_state = ShmState::new(&display_handle, vec![]);
+
+        Self {
+            display_handle,
+            xdg_shell_state,
+            loop_handle,
+            compositor_state,
+            cursor_status,
+            shm_state,
+            seat_state,
+            popups,
+            window_manager,
+            running,
+        }
     }
 }

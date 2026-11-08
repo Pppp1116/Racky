@@ -1,6 +1,5 @@
 use crate::state::State;
 use smithay::{
-    input::pointer::RelativeMotionEvent,
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     wayland::pointer_constraints::{
         ConstraintRemove, PointerConstraint, PointerConstraintsHandler, with_pointer_constraint,
