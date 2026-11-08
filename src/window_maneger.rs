@@ -30,6 +30,19 @@ impl WindowManager {
         self.workspace_collection.get_mut(self.active_workspace)
     }
 
+    pub fn get_window_location_from_surface(
+        &self,
+        surface: &WlSurface,
+    ) -> Option<Point<i32, Logical>> {
+        self.workspace_collection.iter().find_map(|workspace| {
+            workspace
+                .space
+                .elements()
+                .find(|window| window.wl_surface().as_deref() == Some(surface))
+                .and_then(|window| workspace.space.element_location(window))
+        })
+    }
+
     //applies the buffer `offset` for the window
     pub(crate) fn apply_buffer_offset(&mut self, window: &Window, offset: Point<i32, Logical>) {
         for workspace in &mut self.workspace_collection {
