@@ -1,8 +1,8 @@
 use smallvec::SmallVec;
 use smithay::{
-    desktop::{Space, Window},
+    desktop::{Space, Window, WindowSurface, WindowSurfaceType},
     reexports::wayland_server::protocol::wl_surface::WlSurface,
-    utils::{Logical, Point},
+    utils::{Coordinate, Logical, Point},
     wayland::seat::WaylandFocus,
 };
 use std::borrow::Cow;
@@ -46,6 +46,9 @@ impl WindowManager {
     pub fn active_workspace_mut(&mut self) -> Option<&mut Workspace> {
         self.workspace_collection.get_mut(self.active_workspace)
     }
+    pub fn active_workspace(&self) -> Option<&Workspace> {
+        self.workspace_collection.get(self.active_workspace)
+    }
 
     pub fn get_window_location_from_surface(
         &self,
@@ -68,6 +71,31 @@ impl WindowManager {
                 return;
             }
         }
+    }
+    pub fn surface_under(
+        &self,
+        position: Point<f64, Logical>,
+    ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        self.active_workspace().and_then(|work| {
+            work.space
+                .element_under(position)
+                .and_then(|(window, location)| {
+                    window
+                        .surface_under(position - location.to_f64(), WindowSurfaceType::all())
+                        .map(|(surface, offset)| (surface, (offset + location).to_f64()))
+                })
+        })
+    }
+    pub fn close_focused_window(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        let Some(window) = &workspace.focused_window else {
+            return;
+        };
+        match window.underlying_surface() {
+            WindowSurface::Wayland(toplevel) => toplevel.send_close(),
+        };
     }
 }
 
