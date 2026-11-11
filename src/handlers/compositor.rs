@@ -1,14 +1,14 @@
-use crate::{client::ClientState, state::RackyState};
+use crate::{
+    backend::udev::{Backend, UdevBack},
+    client::ClientState,
+    state::RackyState,
+};
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
     delegate_dispatch2,
     input::pointer::{CursorImageStatus, CursorImageSurfaceData},
-    reexports::{
-        wayland_protocols::xdg::shell::server::xdg_wm_base::XdgWmBase,
-        wayland_server::protocol::wl_surface::WlSurface,
-    },
+    reexports::wayland_server::protocol::wl_surface::WlSurface,
     wayland::{
-        GlobalData, GlobalDispatch2,
         buffer::BufferHandler,
         compositor::{
             CompositorHandler, CompositorState as CompositorStateImpl, SurfaceAttributes,
@@ -18,7 +18,7 @@ use smithay::{
     },
 };
 
-impl CompositorHandler for RackyState {
+impl<Data: Backend + 'static> CompositorHandler for RackyState<Data> {
     fn compositor_state(&mut self) -> &mut CompositorStateImpl {
         &mut self.compositor.compositor_state
     }
@@ -96,16 +96,16 @@ impl CompositorHandler for RackyState {
     }
 }
 
-impl BufferHandler for RackyState {
+impl<Data: Backend> BufferHandler for RackyState<Data> {
     fn buffer_destroyed(
         &mut self,
-        buffer: &smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer,
+        _buffer: &smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer,
     ) {
     }
 }
-impl ShmHandler for RackyState {
+impl<Data: Backend> ShmHandler for RackyState<Data> {
     fn shm_state(&self) -> &smithay::wayland::shm::ShmState {
         &self.compositor.shm_state
     }
 }
-delegate_dispatch2!(RackyState);
+delegate_dispatch2!(RackyState<UdevBack>);

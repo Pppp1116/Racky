@@ -1,5 +1,6 @@
 use smithay::{
     desktop::{PopupKind, Window},
+    input::Seat,
     wayland::shell::xdg::XdgShellHandler,
 };
 

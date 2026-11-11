@@ -2,23 +2,29 @@ use std::time::Duration;
 
 use smithay::{
     backend::{
-        drm::{CreateDrmNodeError, DrmDeviceFd, DrmNode, NodeType},
+        drm::{CreateDrmNodeError, DrmDeviceFd, DrmNode, NodeType, output::DrmOutput},
         egl::context::ContextPriority,
+        input::DeviceCapability::Keyboard,
+        libinput::{LibinputInputBackend, LibinputSessionInterface},
         renderer::{
             gles::GlesRenderer,
             multigpu::{GpuManager, gbm::GbmGlesBackend},
         },
         session::{Session, libseat::LibSeatSession},
-        udev::{all_gpus, primary_gpu},
+        udev::{UdevBackend, all_gpus, primary_gpu},
     },
     reexports::{
         calloop::EventLoop,
+        input::Libinput,
         wayland_server::{Display, backend::InitError},
     },
 };
 use thiserror::Error;
 
-use crate::state::RackyState;
+use crate::{
+    backend::udev::{Backend, GpuState, OutputState, UdevBack},
+    state::RackyState,
+};
 #[derive(Debug, Error)]
 pub enum CompError {
     #[error("Event Loop Error: {0}")]
@@ -35,13 +41,15 @@ pub enum CompError {
     NoGpu,
     #[error("Gpu path")]
     GpuPath,
+    #[error("Gpu Maneger")]
+    Gpus,
 }
 
 pub type Result<T> = std::result::Result<T, CompError>;
 
 pub fn run_udev() -> Result<()> {
-    let mut event_loop = EventLoop::<RackyState>::try_new()?;
-    let display = Display::<RackyState>::new()?;
+    let mut event_loop = EventLoop::<RackyState<UdevBack>>::try_new()?;
+    let display = Display::<RackyState<UdevBack>>::new()?;
     let mut display_handle = display.handle();
 
     let (session, notifier) = LibSeatSession::new()?;
@@ -50,15 +58,33 @@ pub fn run_udev() -> Result<()> {
 
     let gpus = GpuManager::new(
         GbmGlesBackend::<GlesRenderer, DrmDeviceFd>::with_context_priority(ContextPriority::High),
-    );
+    )
+    .map_err(|_| CompError::Gpus)?;
 
-    let mut racky_state = RackyState::new(display_handle.clone(), event_loop.handle());
+    let mut backend = UdevBack {
+        gpu: GpuState::new(primary_gpu, gpus),
+        output: Vec::new(),
+        keybords: Vec::new(),
+        session: session,
+    };
+
+    let libinput = init_lib_input(&backend.session);
+
+    let mut racky_state =
+        RackyState::<UdevBack>::new(display_handle.clone(), event_loop.handle(), backend);
+
+    event_loop
+        .handle()
+        .insert_source(libinput, |event, _, state| {
+            state.process_input_event(event);
+        });
 
     while racky_state.compositor.running {
         event_loop.dispatch(Some(Duration::from_millis(16)), &mut racky_state)?;
 
         display_handle.flush_clients()?;
     }
+
     Ok(())
 }
 
@@ -85,4 +111,12 @@ fn find_primary_gpu(seat: &str) -> Result<DrmNode> {
         }
     }
     Err(CompError::NoGpu)
+}
+
+fn init_lib_input(session: &LibSeatSession) -> LibinputInputBackend {
+    let mut libinput =
+        Libinput::new_with_udev::<LibinputSessionInterface<LibSeatSession>>(session.clone().into());
+    libinput.udev_assign_seat(&session.seat()).unwrap();
+
+    LibinputInputBackend::new(libinput)
 }
