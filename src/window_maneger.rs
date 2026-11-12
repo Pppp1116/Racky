@@ -1,23 +1,28 @@
-use smallvec::SmallVec;
+use std::ops::Deref;
+
+use serde::{Deserialize, Serialize};
 use smithay::{
     desktop::{Space, Window, WindowSurface, WindowSurfaceType},
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     utils::{Coordinate, Logical, Point},
     wayland::seat::WaylandFocus,
 };
-use std::borrow::Cow;
+
+use crate::config::settings::Configuration;
 
 pub struct WindowManager {
     workspace_collection: Vec<Workspace>,
     active_workspace: usize,
 }
-impl Default for WindowManager {
-    fn default() -> Self {
-        //TODO: configurable workspace num
-        let mut workspace_collection = Vec::with_capacity(10);
+impl WindowManager {
+    pub fn default(config: Option<&Configuration>) -> Self {
+        let workspace_num = config
+            .and_then(|config| config.number_of_workspaces)
+            .unwrap_or(10);
+        let mut workspace_collection = Vec::with_capacity(workspace_num as usize);
 
-        for _i in 0..=10 {
-            workspace_collection.push(Workspace::default());
+        for _i in 0..workspace_num {
+            workspace_collection.push(Workspace::default(config));
         }
 
         Self {
@@ -104,12 +109,16 @@ pub struct Workspace {
     layout: Layout,
     pub focused_window: Option<Window>,
 }
-impl Default for Workspace {
-    fn default() -> Self {
+impl Workspace {
+    fn default(config: Option<&Configuration>) -> Self {
+        let config = config
+            .and_then(|config| config.default_layout.as_ref())
+            .map(|layout| Layout::from(layout.to_owned()))
+            .unwrap_or(Layout::Floating);
+
         Self {
             space: Space::default(),
-            //TODO: add default layout based on settigns file
-            layout: Layout::Floating,
+            layout: config.into(),
             focused_window: None,
         }
     }

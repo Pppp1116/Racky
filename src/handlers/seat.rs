@@ -1,10 +1,10 @@
-use crate::state::RackyState;
+use crate::{backend::udev::Backend, state::RackyState};
 use smithay::{
     input::{SeatHandler, SeatState},
     reexports::wayland_server::protocol::wl_surface::WlSurface,
 };
 
-impl SeatHandler for RackyState {
+impl<B: Backend + 'static> SeatHandler for RackyState<B> {
     type KeyboardFocus = WlSurface;
     type PointerFocus = WlSurface;
     type TouchFocus = WlSurface;

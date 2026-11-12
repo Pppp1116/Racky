@@ -108,4 +108,3 @@ impl<Data: Backend> ShmHandler for RackyState<Data> {
         &self.compositor.shm_state
     }
 }
-delegate_dispatch2!(RackyState<UdevBack>);

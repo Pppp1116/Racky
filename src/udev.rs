@@ -23,6 +23,7 @@ use thiserror::Error;
 
 use crate::{
     backend::udev::{Backend, GpuState, OutputState, UdevBack},
+    config::settings::Configuration,
     state::RackyState,
 };
 #[derive(Debug, Error)]
@@ -47,7 +48,7 @@ pub enum CompError {
 
 pub type Result<T> = std::result::Result<T, CompError>;
 
-pub fn run_udev() -> Result<()> {
+pub fn run_udev(config: Option<&Configuration>) -> Result<()> {
     let mut event_loop = EventLoop::<RackyState<UdevBack>>::try_new()?;
     let display = Display::<RackyState<UdevBack>>::new()?;
     let mut display_handle = display.handle();
@@ -61,17 +62,17 @@ pub fn run_udev() -> Result<()> {
     )
     .map_err(|_| CompError::Gpus)?;
 
-    let mut backend = UdevBack {
-        gpu: GpuState::new(primary_gpu, gpus),
-        output: Vec::new(),
-        keybords: Vec::new(),
-        session: session,
-    };
+    let backend = UdevBack::new(
+        session,
+        Vec::new(),
+        GpuState::new(primary_gpu, gpus),
+        Vec::new(),
+    );
 
     let libinput = init_lib_input(&backend.session);
 
     let mut racky_state =
-        RackyState::<UdevBack>::new(display_handle.clone(), event_loop.handle(), backend);
+        RackyState::<UdevBack>::new(display_handle.clone(), event_loop.handle(), backend, config);
 
     event_loop
         .handle()

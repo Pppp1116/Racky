@@ -1,7 +1,8 @@
 use smithay::{
-    backend::input::{Event, InputBackend, KeyState, KeyboardKeyEvent},
+    backend::input::{Event, InputBackend, KeyState, KeyboardKeyEvent, PointerButtonEvent},
     desktop::layer_map_for_output,
     input::keyboard::{FilterResult, Keysym, ModifiersState},
+    reexports::wayland_server::protocol::wl_pointer,
     utils::SERIAL_COUNTER,
     wayland::shell::wlr_layer::KeyboardInteractivity,
 };
@@ -14,7 +15,7 @@ pub enum KeyActions {
     CloseFocus,
 }
 
-impl<BackendData: Backend> RackyState<BackendData> {
+impl<BackendData: Backend + 'static> RackyState<BackendData> {
     pub fn keyboard_key_to_action<B: InputBackend>(
         &mut self,
         event: &B::KeyboardKeyEvent,
@@ -48,7 +49,7 @@ impl<BackendData: Backend> RackyState<BackendData> {
                 });
 
                 if let Some(surface) = surface {
-                    keyboard.set_focus(self, Some(surface.into()), serial);
+                    keyboard.set_focus(self, Some(surface.wl_surface().to_owned()), serial);
                     keyboard.input(self, keycode, state, serial, time, |_, _, _| {
                         FilterResult::<()>::Forward
                     });
@@ -123,4 +124,17 @@ fn process_keyboard_shortcuts(modefiers: ModifiersState, keysym: Keysym) -> Opti
         }
     }
     return None;
+}
+
+impl<B: Backend + 'static + InputBackend> RackyState<B> {
+    fn on_pointer_button(&mut self, event: B::PointerButtonEvent) {
+        let serial = SERIAL_COUNTER.next_serial();
+        let button = event.button_code();
+
+        let state = wl_pointer::ButtonState::from(event.state());
+
+        if wl_pointer::ButtonState::Pressed == state {
+            //TODO impl rest
+        }
+    }
 }

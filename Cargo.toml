@@ -20,6 +20,9 @@ thiserror = "2.0.21"
 tracing = {version = "0.1.44", features = ["release_max_level_info"]}
 tracing-subscriber = "0.3.23"
 constructor_derive = {path = "./constructor_derive"}
+serde = { version = "1.0.229", features = ["derive"] }
+serde-kdl2 = "0.1.0"
+dirs = "7.0.0"
 
 
 [lints.clippy]

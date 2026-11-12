@@ -1,5 +1,6 @@
 pub mod backend;
 pub mod client;
+pub mod config;
 pub mod handlers;
 pub mod helper;
 pub mod mode;

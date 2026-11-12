@@ -1,5 +1,6 @@
 use crate::{
     backend::udev::{Backend, UdevBack},
+    config::settings::{Configuration, OutputTransform},
     handlers::input::KeyActions,
     window_maneger::WindowManager,
 };
@@ -7,8 +8,9 @@ use smallvec::SmallVec;
 use smithay::{
     backend::{
         input::{Axis, Event, InputEvent, PointerAxisEvent, PointerMotionEvent},
-        libinput::{LibinputInputBackend, PointerScrollAxis},
+        libinput::LibinputInputBackend,
     },
+    delegate_dispatch2,
     desktop::PopupManager,
     input::{
         Seat, SeatState,
@@ -17,17 +19,22 @@ use smithay::{
     },
     reexports::{
         calloop::LoopHandle,
-        wayland_server::{DisplayHandle, protocol::wl_seat::WlSeat},
+        wayland_server::{DisplayHandle, GlobalDispatch, protocol},
     },
-    utils::SERIAL_COUNTER,
+    utils::{SERIAL_COUNTER, Transform},
     wayland::{
+        GlobalData,
         compositor::CompositorState as CompositorStateImpl,
-        shell::{wlr_layer::WlrLayerShellState, xdg::XdgShellState},
+        shell::{
+            wlr_layer::{WlrLayerShellHandler, WlrLayerShellState},
+            xdg::XdgShellState,
+        },
         shm::ShmState,
     },
 };
 
-pub struct RackyState<B: Backend> {
+delegate_dispatch2!(@<B: Backend+'static>RackyState<B>);
+pub struct RackyState<B: Backend + 'static> {
     pub(crate) compositor: Compositor<B>,
     pub(crate) backend: B,
 }
@@ -37,15 +44,31 @@ impl<Back: Backend> RackyState<Back> {
         display_handle: DisplayHandle,
         loop_handle: LoopHandle<'static, RackyState<Back>>,
         backend: Back,
+        config: Option<&Configuration>,
     ) -> Self {
         Self {
-            compositor: Compositor::new(display_handle, loop_handle),
+            compositor: Compositor::new(display_handle, loop_handle, config),
             backend,
         }
     }
 }
 
-pub struct Compositor<B: Backend> {
+impl<B: Backend + 'static> WlrLayerShellHandler for RackyState<B> {
+    fn shell_state(&mut self) -> &mut WlrLayerShellState {
+        &mut self.compositor.layer_shell_state
+    }
+    fn new_layer_surface(
+        &mut self,
+        surface: smithay::wayland::shell::wlr_layer::LayerSurface,
+        output: Option<protocol::wl_output::WlOutput>,
+        layer: smithay::wayland::shell::wlr_layer::Layer,
+        namespace: String,
+    ) {
+        //TODO: chosse output and,arrange layer send its initial config
+    }
+}
+
+pub struct Compositor<B: Backend + 'static> {
     // Wayland infrastructure
     pub display_handle: DisplayHandle,
     pub loop_handle: LoopHandle<'static, RackyState<B>>,
@@ -62,33 +85,45 @@ pub struct Compositor<B: Backend> {
     pub popups: PopupManager,
     pub cursor_status: CursorImageStatus,
     pub layer_shell_state: WlrLayerShellState,
+    pub transformation: Transform,
     // Your own window-management policy
     pub window_manager: WindowManager,
     pub running: bool,
 }
 
-impl<B: Backend> Compositor<B> {
-    fn new(display_handle: DisplayHandle, loop_handle: LoopHandle<'static, RackyState<B>>) -> Self {
-        let xdg_shell_state = XdgShellState::new(&display_handle);
+impl<B: Backend + 'static> Compositor<B> {
+    fn new(
+        display_handle: DisplayHandle,
+        loop_handle: LoopHandle<'static, RackyState<B>>,
+        config: Option<&Configuration>,
+    ) -> Self {
+        let xdg_shell_state = XdgShellState::new::<RackyState<B>>(&display_handle);
         let compositor_state = CompositorStateImpl::new::<RackyState<B>>(&display_handle);
-        let seat_state = SeatState::<RackyState<B>>::new();
+        let mut seat_state = SeatState::<RackyState<B>>::new();
         let popups = PopupManager::default();
         let cursor_status = CursorImageStatus::default_named();
-        let window_manager = WindowManager::default();
+        let window_manager = WindowManager::default(config);
         let seat = seat_state.new_wl_seat(&display_handle, "seat0");
         //FIXME: support more formats
         let shm_state = ShmState::new::<RackyState<B>>(&display_handle, vec![]);
-        let layer_shell_state = WlrLayerShellState::new(&display_handle);
+        let layer_shell_state = WlrLayerShellState::new::<RackyState<B>>(&display_handle);
+
+        let transform = config
+            .and_then(|config| config.transform.as_ref())
+            .map(|transform| Transform::from(transform.clone()))
+            .unwrap_or(Transform::Normal);
 
         Self {
             display_handle,
             layer_shell_state,
             seat,
+            transformation: transform,
             xdg_shell_state,
             loop_handle,
             compositor_state,
             cursor_status,
             shm_state,
+            suppressed_keys: SmallVec::new(),
             seat_state,
             popups,
             window_manager,
@@ -97,7 +132,7 @@ impl<B: Backend> Compositor<B> {
     }
 }
 
-impl<B: Backend> RackyState<B> {
+impl<B: Backend + 'static> RackyState<B> {
     pub fn process_input_event(&mut self, event: InputEvent<LibinputInputBackend>) {
         match event {
             InputEvent::DeviceRemoved { device } => self.backend.remove_device(&device),
@@ -140,7 +175,11 @@ impl<B: Backend> RackyState<B> {
                 pointer.frame(self);
             }
             InputEvent::Keyboard { event } => {
-                let action = self.keyboard_key_to_action(&event);
+                let action = self.keyboard_key_to_action::<LibinputInputBackend>(&event);
+                self.handle_key_action(&action);
+            }
+            InputEvent::PointerButton { event } => {
+                //TODO: call on pointer data
             }
         }
     }

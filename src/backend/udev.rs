@@ -36,13 +36,14 @@ pub struct GpuState {
     pub gpus: GpuCollection,
 }
 
-pub trait Backend {
+pub trait Backend: 'static {
     fn remove_device(&mut self, device: &LibInputDevice);
     fn add_device(&mut self, device: LibInputDevice);
 }
 
+#[derive(New)]
 pub struct UdevBack {
-    session: LibSeatSession,
+    pub session: LibSeatSession,
     output: Vec<OutputState>,
     gpu: GpuState,
     keybords: Vec<smithay::reexports::input::Device>,

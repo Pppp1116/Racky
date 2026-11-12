@@ -4,9 +4,9 @@ use smithay::{
     wayland::shell::xdg::XdgShellHandler,
 };
 
-use crate::state::RackyState;
+use crate::{backend::udev::Backend, state::RackyState};
 
-impl XdgShellHandler for RackyState {
+impl<B: Backend + 'static> XdgShellHandler for RackyState<B> {
     fn xdg_shell_state(&mut self) -> &mut smithay::wayland::shell::xdg::XdgShellState {
         &mut self.compositor.xdg_shell_state
     }
