@@ -91,7 +91,7 @@ pub fn run_udev(config: Option<&Configuration>) -> Result<()> {
 
 fn find_primary_gpu(seat: &str) -> Result<DrmNode> {
     //TODO: remove the env limitation
-    if let Ok(path) = std::env::var("MY_DRM_DEVICE") {
+    if let Ok(path) = std::env::var("DRM_DEVICE") {
         return Ok(DrmNode::from_path(path)?);
     }
 

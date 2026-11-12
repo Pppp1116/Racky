@@ -1,8 +1,6 @@
-use std::ops::Deref;
-
-use serde::{Deserialize, Serialize};
 use smithay::{
     desktop::{Space, Window, WindowSurface, WindowSurfaceType},
+    output::Output,
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     utils::{Coordinate, Logical, Point},
     wayland::seat::WaylandFocus,
@@ -48,9 +46,11 @@ impl WindowManager {
         workspace.focused_window = Some(window)
     }
     /// gets a mutable ref to the workspace collection
+    #[inline]
     pub fn active_workspace_mut(&mut self) -> Option<&mut Workspace> {
         self.workspace_collection.get_mut(self.active_workspace)
     }
+    #[inline]
     pub fn active_workspace(&self) -> Option<&Workspace> {
         self.workspace_collection.get(self.active_workspace)
     }
@@ -86,11 +86,15 @@ impl WindowManager {
                 .element_under(position)
                 .and_then(|(window, location)| {
                     window
-                        .surface_under(position - location.to_f64(), WindowSurfaceType::all())
-                        .map(|(surface, offset)| (surface, (offset + location).to_f64()))
+                        .surface_under(
+                            position.to_f64() - location.to_f64(),
+                            WindowSurfaceType::all(),
+                        )
+                        .map(|(surface, offset)| (surface, offset.to_f64() + location.to_f64()))
                 })
         })
     }
+    #[inline]
     pub fn close_focused_window(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
@@ -135,6 +139,7 @@ impl Workspace {
         }
         self.space.map_element(window, (x, y), true);
     }
+
     fn arrange_window(&mut self, window: &Window) -> Option<(i32, i32)> {
         let Some(output) = self.space.outputs().next() else {
             return None;
@@ -144,11 +149,19 @@ impl Workspace {
         };
 
         let size = window.geometry().size;
-        let y = screen.loc.y + (screen.size.h - size.h) / 2;
+        let y = screen
+            .loc
+            .y
+            .checked_add(screen.size.h.checked_sub(size.h)?)?
+            / 2;
 
         match &self.layout {
             Layout::Floating => {
-                let x = screen.loc.x + (screen.size.w - size.w) / 2;
+                let x = screen
+                    .loc
+                    .x
+                    .checked_add(screen.size.w.checked_sub(size.w)?)?
+                    / 2;
                 Some((x, y))
             }
             Layout::Scrooling {
@@ -157,17 +170,18 @@ impl Workspace {
             } => {
                 let width = screen.size.w / 2;
 
-                let mut x = 10;
+                let mut x: i32 = 10;
 
                 for existing in windows {
-                    let position = (x - *scrool_offset, 10);
+                    let position_x = x.checked_sub(*scrool_offset)?;
+                    let position = (position_x, 10);
 
                     self.space.relocate_element(existing, position);
 
-                    x += width + 10;
+                    x = x.checked_add(width)?.checked_add(10)?;
                 }
 
-                Some((x - *scrool_offset, y))
+                Some((x.checked_sub(*scrool_offset)?, y))
             }
         }
     }

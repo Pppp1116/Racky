@@ -23,6 +23,7 @@ constructor_derive = {path = "./constructor_derive"}
 serde = { version = "1.0.229", features = ["derive"] }
 serde-kdl2 = "0.1.0"
 dirs = "7.0.0"
+vstd = "0.0.0-2026-11-08-0256"
 
 
 [lints.clippy]
@@ -32,3 +33,12 @@ nursery = { level = "warn", priority = -1 }
 # Performance-related checks
 large_stack_arrays = "warn"
 large_const_arrays = "warn"
+
+[package.metadata.verus]
+verify = true
+
+[lints.rust]
+unexpected_cfgs = {
+level = "warn",
+check-cfg = ['cfg(verus_only)']
+}

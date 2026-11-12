@@ -11,12 +11,13 @@ use smithay::{
         libinput::LibinputInputBackend,
     },
     delegate_dispatch2,
-    desktop::PopupManager,
+    desktop::{LayerSurface, PopupManager, layer_map_for_output},
     input::{
         Seat, SeatState,
         keyboard::Keysym,
         pointer::{AxisFrame, CursorImageStatus, MotionEvent},
     },
+    output::Output,
     reexports::{
         calloop::LoopHandle,
         wayland_server::{DisplayHandle, GlobalDispatch, protocol},
@@ -64,7 +65,35 @@ impl<B: Backend + 'static> WlrLayerShellHandler for RackyState<B> {
         layer: smithay::wayland::shell::wlr_layer::Layer,
         namespace: String,
     ) {
-        //TODO: chosse output and,arrange layer send its initial config
+        let Some(workspace) = &self.compositor.window_manager.active_workspace() else {
+            return;
+        };
+        let Some(output) = output
+            .as_ref()
+            .and_then(Output::from_resource)
+            .or_else(|| workspace.space.outputs().next().cloned())
+        else {
+            return;
+        };
+        let mut map = layer_map_for_output(&output);
+        let Ok(_) = map.map_layer(&LayerSurface::new(surface, namespace)) else {
+            return;
+        };
+    }
+    fn layer_destroyed(&mut self, surface: smithay::wayland::shell::wlr_layer::LayerSurface) {
+        let Some(workspace) = &self.compositor.window_manager.active_workspace() else {
+            return;
+        };
+        if let Some((mut map, layer)) = workspace.space.outputs().find_map(|o| {
+            let map = layer_map_for_output(o);
+            let layer = map
+                .layers()
+                .find(|&layer| layer.layer_surface() == &surface)
+                .cloned();
+            layer.map(|layer| (map, layer))
+        }) {
+            map.unmap_layer(&layer);
+        }
     }
 }
 
